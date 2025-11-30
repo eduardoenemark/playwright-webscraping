@@ -1,0 +1,30 @@
+{
+  "name": "webscraping-puppeteer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.ts",
+  "type": "module",
+  "scripts": {
+    "start": "tsx main.ts"
+  },
+  "keywords": [],
+  "author": "eduardoenemark",
+  "license": "ISC",
+  "engines": {
+    "node": ">=24.11.0"
+  },
+  "dependencies": {
+    "dotenv": "17.2.3",
+    "encodeurl": "2.0.0",
+    "https": "1.0.0",
+    "playwright": "1.56.1",
+    "typescript": "5.9.3",
+    "url": "0.11.4",
+    "winston": "3.18.3"
+  },
+  "devDependencies": {
+    "@types/encodeurl": "1.0.3",
+    "@types/node": "20.0.0",
+    "tsx": "4.20.6"
+  }
+}

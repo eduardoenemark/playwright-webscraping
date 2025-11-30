@@ -1,0 +1,47 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Build artifacts
+/dist
+/build
+/lib
+
+# TypeScript artifacts
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Coverage
+/coverage
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Playwright
+/playwright-report
+/.playwright
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+site_archive/
+
+# Node.js
+.nyc_output
+.nyc_output/
