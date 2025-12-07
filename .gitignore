@@ -21,6 +21,7 @@
 
 # Logs
 *.log
+*.log.bkp
 
 # OS generated files
 .DS_Store
@@ -41,7 +42,10 @@ Thumbs.db
 *.temp
 tmp/
 site_archive/
+mongodb/data/
+test/
 
 # Node.js
 .nyc_output
 .nyc_output/
+/nbproject/private/
