@@ -46,8 +46,8 @@ const CRAWL_CONFIG: CrawlParams = {
         ? parseInt(process.env.TIMEOUT)
         : DEFAULT_TIMEOUT_MILLIS,
     proxy: process.env.PROXY
-    ? { server: process.env.PROXY }
-    : undefined
+        ? { server: process.env.PROXY }
+        : undefined
 };
 
 await executeCrawl(CRAWL_CONFIG);
