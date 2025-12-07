@@ -70,10 +70,10 @@ function extractLinks(html: string): string[] {
     return matches.map(match => match[2]);
 }
 
-function removeLastPartThatHaveExtension(url: string): string {
+function removeExtensionOrFragment(url: string): string {
     return /.+\/$/.test(url)
         ? url
-        : (/.+\/.+\.[a-zA-Z0-9]{2,5}$/.test(url)
+        : (/.+\/(.+\.[a-zA-Z0-9]{2,5}|#[^\/]*)$/.test(url)
             ? url.replace(/\/[^\/]*\/?$/, '/')
             : url);
 }
@@ -89,7 +89,7 @@ function filterSameDomainLinks(currentUrl: string,
             return encodeUrl(
                 removeDoubleBars(
                     unionUrl(
-                        removeLastPartThatHaveExtension(currentUrl),
+                        removeExtensionOrFragment(currentUrl),
                         link)));
         })
         .filter((link) => !IGNORE_URL_REGEX.test(link))
