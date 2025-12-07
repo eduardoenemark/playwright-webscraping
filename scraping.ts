@@ -1,4 +1,4 @@
-import {Browser, chromium, Page} from "playwright";
+import {APIResponse, Browser, chromium, Page} from "playwright";
 import * as fs from "fs/promises";
 import {
     createDirectories,
@@ -13,7 +13,7 @@ import {
     unionUrlParts
 } from "./utils.js";
 import logger from "./logger.js";
-import {BrowserContextOptions} from "playwright-core";
+import {BrowserContextOptions, Response} from "playwright-core";
 import encodeUrl from "encodeurl";
 
 // Constantes:
@@ -29,8 +29,13 @@ export const DEFAULT_PORT = 8080;
 export const DEFAULT_START_PATH = "/";
 export const DEFAULT_OUTPUT_DIR = "./site_archive";
 export const DEFAULT_OVERRIDES = false;
+export const DEFAULT_HEADLESS = false;
 
-// Interface
+// Internal constants:
+const HTML_FILENAME_REGEX = /.+\.(html|htm|xhtml|xml)/gi;
+const HTML_CONTENT_TYPE_REGEX = /.+\/(html|htm|xhtml|xml)/gi;
+const IGNORE_URL_REGEX = /.+\/about:blank$/gi;
+
 export interface CrawlParams {
     protocol: string;
     domain: {
@@ -52,7 +57,7 @@ async function initializeBrowser(bcOptions: BrowserContextOptions): Promise<{
     browser: Browser;
     page: Page
 }> {
-    const browser = await chromium.launch(bcOptions);
+    const browser = await chromium.launch({...bcOptions, headless: DEFAULT_HEADLESS});
     // create a new context to allow setting viewport and other options
     const context = await browser.newContext(bcOptions);
     const page = await context.newPage();
@@ -65,6 +70,14 @@ function extractLinks(html: string): string[] {
     return matches.map(match => match[2]);
 }
 
+function removeLastPartThatHaveExtension(url: string): string {
+    return /.+\/$/.test(url)
+        ? url
+        : (/.+\/.+\.[a-zA-Z0-9]{2,5}$/.test(url)
+            ? url.replace(/\/[^\/]*\/?$/, '/')
+            : url);
+}
+
 function filterSameDomainLinks(currentUrl: string,
                                links: string[],
                                params: CrawlParams): string[] {
@@ -73,12 +86,17 @@ function filterSameDomainLinks(currentUrl: string,
         .map((link) => {
             // If link already contains a protocol, use it as-is
             if (/^https?:\/\//i.test(link)) return link;
-            return encodeUrl(removeDoubleBars(unionUrl(currentUrl, link)));
+            return encodeUrl(
+                removeDoubleBars(
+                    unionUrl(
+                        removeLastPartThatHaveExtension(currentUrl),
+                        link)));
         })
-        .filter((url) => {
-            logger.info(`Filtering link ${url}`);
+        .filter((link) => !IGNORE_URL_REGEX.test(link))
+        .filter((link) => {
             try {
-                return new URL(url).hostname.includes(params.domain.base);
+                let url = new URL(link);
+                return url.hostname.includes(params.domain.base) || url.hostname === null;
             } catch {
                 return false;
             }
@@ -111,33 +129,65 @@ async function savePageContent(content: string | Buffer | null | undefined,
     if (content !== null) await saveFile(baseOutputDir, url, payload);
 }
 
-async function request(page: Page,
-                       url: string,
-                       params: CrawlParams): Promise<{
+interface HttpResponse {
     response: {
-        status: number | null,
-        headers: Record<string, string> | null,
-        body: Buffer | null,
-        text: string | null,
+        status?: number | null | undefined,
+        headers?: Record<string, string> | null | undefined,
+        body?: Buffer | null | undefined,
+        text?: string | null | undefined,
+        binary?: boolean,
         url: string
     }
-}> {
-    logger.info('Fetch method called...');
-    const response = await page.request.fetch(url, {
+}
+
+async function fetch(page: Page,
+                     url: string,
+                     params: CrawlParams): Promise<APIResponse> {
+    logger.info(`Fetch method called for url ${url}`);
+    return await page.request.fetch(url, {
         timeout: params.timeout || DEFAULT_TIMEOUT_MILLIS,
         maxRetries: params.maxRetries || DEFAULT_MAX_RETRIES
     });
-    logger.info(`Response status ${response?.status()} and headers: ${JSON.stringify(response?.headers())} for ${url}`);
+}
 
-    return {
+async function goto(page: Page,
+                    url: string,
+                    params: CrawlParams): Promise<null | Response> {
+    logger.info(`Goto method called for url ${url}`);
+    return await page.goto(url, {
+        timeout: params.timeout || DEFAULT_TIMEOUT_MILLIS,
+        waitUntil: "commit"
+    });
+}
+
+async function request(page: Page,
+                       url: string,
+                       params: CrawlParams): Promise<HttpResponse> {
+    let result: HttpResponse = {
         response: {
-            status: response?.status(),
-            headers: response?.headers(),
-            body: await response?.body(),
-            text: await response?.text(),
-            url: url
+            status: 0,
+            url: url,
+            binary: false
         }
-    };
+    }
+    let response: any;
+    response = await goto(page, url, params);
+    const contentType = response.headers()['content-type'];
+    logger.info(`Response status ${response.status()} and headers: ${JSON.stringify(response.headers())} for ${url}`);
+
+    if (!HTML_FILENAME_REGEX.test(url) && !HTML_CONTENT_TYPE_REGEX.test(contentType)) {
+        response = await fetch(page, url, params);
+        result.response.binary = true;
+    }
+    if (response) {
+        result.response.status = response.status();
+        result.response.headers = response.headers();
+        result.response.body = await response.body();
+        result.response.text = await response.text();
+    }
+
+    logger.info(`Response status: ${result.response.status}, payload size: ${result.response.body?.length}, headers: ${JSON.stringify(response.headers())} for ${url}`);
+    return result;
 }
 
 function enqueueNewLinks(links: string[],
@@ -146,6 +196,28 @@ function enqueueNewLinks(links: string[],
     for (const link of links) {
         if (!visited.has(link)) {
             queue.push(link);
+        }
+    }
+}
+
+async function handleCookieConsent(page: Page): Promise<void> {
+    const selectors = [
+        'button:has-text("Accept")',
+        'button:has-text("Accept all")',
+        'button#accept-choices',
+        'button.cookie-accept',
+        'a:has-text("Accept Cookies")'
+    ];
+
+    for (const selector of selectors) {
+        try {
+            await page.waitForSelector(selector, {state: 'visible', timeout: 2000});
+            await page.click(selector);
+            logger.info(`Accepted cookies using selector: ${selector}`);
+            await page.waitForTimeout(1000);
+            break;
+        } catch (error) {
+            logger.error(`Handle cookie consent error: ${error}`)
         }
     }
 }
@@ -164,7 +236,6 @@ export async function crawl(params: CrawlParams): Promise<void> {
             content: "attach",
             path: getFileFullPath(params.baseOutputDir, params.domain.base),
             mode: "full"
-            /*urlFilter?: string|RegExp;*/
         }
     }
     const {browser, page} = await initializeBrowser(bcOptions);
@@ -187,15 +258,23 @@ export async function crawl(params: CrawlParams): Promise<void> {
             try {
                 const result = await request(page, currentUrl, params);
                 if (result?.response.status === DEFAULT_HTTP_SUCCESS_STATUS_CODES) {
-                    const url = decodeURIComponent(removePortFromUrl(result?.response?.url || EMPTY));
-                    await savePageContent(result?.response?.body, params.baseOutputDir, url, params.overrides || false);
+                    // Cookie consent:
+                    // await handleCookieConsent(page);
 
-                    const extractedLinks = extractLinks(result?.response?.text || EMPTY);
+                    // Save page content:
+                    const url = decodeURIComponent(removePortFromUrl(page.url() || EMPTY));
+                    await savePageContent(result.response.body, params.baseOutputDir, url, params.overrides || false);
+
+                    // Extract new links:
+                    if (result.response.binary) continue;
+                    const extractedLinks = extractLinks(result.response.text || EMPTY);
                     logger.info(`Extracted links: ${extractedLinks}`);
 
-                    const filteredLinks = filterSameDomainLinks(result?.response?.url, extractedLinks, params);
+                    // Filter new links:
+                    const filteredLinks = filterSameDomainLinks(page.url(), extractedLinks, params);
                     logger.info(`Filtered links: ${filteredLinks}`);
 
+                    // Add new links to queue:
                     enqueueNewLinks(filteredLinks, visited, queue);
                 }
             } catch (error) {
