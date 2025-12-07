@@ -4,7 +4,7 @@ import {
     DEFAULT_DOMAIN_BASE, DEFAULT_INTERVAL_BETWEEN_REQUESTS, DEFAULT_INTERVAL_FACTOR, DEFAULT_OUTPUT_DIR,
     DEFAULT_OVERRIDES, DEFAULT_PORT,
     DEFAULT_PROTOCOL,
-    DEFAULT_PROXY_SERVER, DEFAULT_START_PATH,
+    DEFAULT_START_PATH,
     DEFAULT_TIMEOUT_MILLIS
 } from "./scraping.js";
 import logger from "./logger.js";
@@ -45,7 +45,9 @@ const CRAWL_CONFIG: CrawlParams = {
     timeout: process.env.TIMEOUT
         ? parseInt(process.env.TIMEOUT)
         : DEFAULT_TIMEOUT_MILLIS,
-    proxy: process.env.PROXY || DEFAULT_PROXY_SERVER,
+    proxy: process.env.PROXY
+    ? { server: process.env.PROXY }
+    : undefined
 };
 
 await executeCrawl(CRAWL_CONFIG);

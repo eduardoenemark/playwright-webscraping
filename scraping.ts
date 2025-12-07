@@ -17,7 +17,6 @@ import {BrowserContextOptions, Response} from "playwright-core";
 import encodeUrl from "encodeurl";
 
 // Constantes:
-export const DEFAULT_PROXY_SERVER = "http://hefesto:55455";
 export const DEFAULT_TIMEOUT_MILLIS = 60 * 1000;
 export const DEFAULT_HTTP_SUCCESS_STATUS_CODES = 200;
 export const DEFAULT_MAX_RETRIES = 20;
@@ -50,7 +49,12 @@ export interface CrawlParams {
     intervalFactor?: number;
     timeout?: number;
     maxRetries?: number;
-    proxy: string;
+    proxy?: {
+        server: string;
+        bypass?: string;
+        username?: string;
+        password?: string;
+    };
 }
 
 async function initializeBrowser(bcOptions: BrowserContextOptions): Promise<{
@@ -230,7 +234,6 @@ export async function crawl(params: CrawlParams): Promise<void> {
         acceptDownloads: true,
         colorScheme: 'dark',
         baseURL: `${params.protocol}://${params.domain.start}:${params.port}`,
-        proxy: {server: params.proxy},
         recordHar: {
             omitContent: false,
             content: "attach",
@@ -238,6 +241,10 @@ export async function crawl(params: CrawlParams): Promise<void> {
             mode: "full"
         }
     }
+    if(params.proxy?.server !== null) {
+        bcOptions.proxy = params.proxy;
+    }
+
     const {browser, page} = await initializeBrowser(bcOptions);
     await fs.mkdir(params.baseOutputDir, {recursive: true});
 
