@@ -14,9 +14,9 @@ dotenv.config();
 
 async function executeCrawl(config: CrawlParams): Promise<void> {
     try {
-        logger.info(`---------- Starting crawl for ${config.domain} ----------`);
+        logger.info(`---------- Starting crawl for ${config.domain.base} ----------`);
         await crawl(config);
-        logger.info(`---------- Crawl completed successfully for ${config.domain} ----------`);
+        logger.info(`---------- Crawl completed successfully for ${config.domain.base} ----------`);
     } catch (error) {
         logger.error(`***** Crawl failed for ${config.domain}: ${(error as Error).message} *****`);
         throw error;
@@ -30,7 +30,7 @@ const CRAWL_CONFIG: CrawlParams = {
     protocol: process.env.PROTOCOL || DEFAULT_PROTOCOL,
     domain: {
         base: process.env.DOMAIN_BASE || DEFAULT_DOMAIN_BASE,
-        start: process.env.DOMAIN_START || DEFAULT_DOMAIN_BASE,
+        start: process.env.DOMAIN_START || process.env.DOMAIN_BASE || DEFAULT_DOMAIN_BASE,
         startPath: process.env.START_PATH || DEFAULT_START_PATH,
     },
     port: process.env.PORT ? parseInt(process.env.PORT) : DEFAULT_PORT,
