@@ -1,7 +1,7 @@
 {
   "name": "webscraping-puppeteer",
   "version": "1.0.0",
-  "description": "",
+  "description": "A web scraping tool using Playwright to crawl websites and save content locally",
   "main": "main.ts",
   "type": "module",
   "scripts": {
