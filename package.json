@@ -5,7 +5,7 @@
   "main": "main.ts",
   "type": "module",
   "scripts": {
-    "start": "tsx main.ts"
+    "start": "tsx --max-old-space-size=8192 main.ts"
   },
   "keywords": [],
   "author": "eduardoenemark",
